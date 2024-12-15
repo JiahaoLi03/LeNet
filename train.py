@@ -1,8 +1,12 @@
+import torch
 from torchvision.datasets import FashionMNIST
 from torchvision import transforms
 import torch.utils.data as Data
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
+import copy
+import time
 
 from model import LeNet
 
@@ -37,5 +41,38 @@ def train_val_data_process():
                                      num_workers=8)
 
     return train_dataloader, val_dataloader
+
+def train_model_process(model, train_dataloader, val_dataloader, num_epochs):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    # 损失函数
+    criterion = nn.CrossEntropyLoss()
+
+    model = model.to(device)
+
+    beat_model_wts = copy.deepcopy(model.state_dict())
+
+    # 初始化参数
+    # 最高准确度
+    best_ac = 0.0
+
+    # 训练集 loss 值列表
+    train_loss_all = []
+
+    # 验证集 loss 值列表
+    val_loss_all = []
+
+    # 训练集准确度列表
+    train_acc_all = []
+
+    # 验证集准确度列表
+    val_acc_all = []
+
+    # 当前时间
+    since = time.time()
+
+
 
 
