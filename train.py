@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 import time
+import pandas as pd
 
 from model import LeNet
 
@@ -33,12 +34,12 @@ def train_val_data_process():
     train_dataloader = Data.DataLoader(dataset=train_data,
                                        batch_size=128,  # 每次从训练集中提取 128 条样本（小批量处理）
                                        shuffle=True,
-                                       num_workers=8)
+                                       num_workers=2)
 
     val_dataloader = Data.DataLoader(dataset=val_data,
                                      batch_size=128,
                                      shuffle=True,
-                                     num_workers=8)
+                                     num_workers=2)
 
     return train_dataloader, val_dataloader
 
@@ -62,7 +63,7 @@ def train_model_process(model, train_dataloader, val_dataloader, num_epochs):
 
     # 初始化参数
     # 最高准确度
-    best_ac = 0.0
+    best_acc = 0.0
 
     # 训练集 loss 值列表
     train_loss_all = []
@@ -80,7 +81,7 @@ def train_model_process(model, train_dataloader, val_dataloader, num_epochs):
     since = time.time()
 
     for epoch in range(num_epochs):
-        print("Epoch {}/{}".format(epoch + 1, num_epochs))
+        print("Epoch {}/{}".format(epoch, num_epochs - 1))
         print('-' * 15)
 
         # 本轮训练集损失值
@@ -158,6 +159,7 @@ def train_model_process(model, train_dataloader, val_dataloader, num_epochs):
             b_x = b_x.to(device)
             b_y = b_y.to(device)
 
+            # 切换模型到 评估模式
             model.eval()
 
             output = model(b_x)
@@ -172,36 +174,82 @@ def train_model_process(model, train_dataloader, val_dataloader, num_epochs):
 
             val_num += b_x.size(0)
 
+        # 记录当前轮次训练集的平均损失和准确率
         train_loss_all.append(train_loss / train_num)
         train_acc_all.append(train_corrects.double().item() / train_num)
 
+        # 记录当前轮次验证集的平均损失和准确率
         val_loss_all.append(val_loss / val_num)
         val_acc_all.append(val_corrects.double().item() / val_num)
 
-        print("{} Train Loss: {:.4f}  Train Acc: {:.4f}".format(epoch + 1, train_loss_all[-1], train_acc_all[-1]))
-        print("{}   Val Loss: {:.4f}    Val Acc: {:.4f}".format(epoch + 1, val_loss_all[-1], val_acc_all[-1]))
+        # 打印当前轮次的训练和验证损失以及准确率
+        print("{} Train Loss: {:.4f}  Train Acc: {:.4f}".format(epoch, train_loss_all[-1], train_acc_all[-1]))
+        print("{}   Val Loss: {:.4f}    Val Acc: {:.4f}".format(epoch, val_loss_all[-1], val_acc_all[-1]))
 
+        # 保存验证集准确率最高的模型参数
+        if best_acc < val_acc_all[-1]:
+            best_acc = val_acc_all[-1]
+            best_model_wts = copy.deepcopy(model.state_dict())
 
+        # 计算并打印本轮训练和验证耗费的时间
+        time_used = time.time() - since
+        print("训练和验证耗费的时间：{:.0f}m{:.0f}s".format(time_used // 60, time_used % 60))
 
+    # 保存最佳模型的权重到指定路径
+    torch.save(best_model_wts, 'C:/Users/admin/Desktop/LeNet/best_model.pth')
 
+    # 将训练和验证的损失、准确率等数据保存为 Pandas 数据帧，方便后续分析或可视化
+    train_process = pd.DataFrame(data={"epoch": range(num_epochs),
+                                       "train_loss_all": train_loss_all,
+                                       "val_loss_all": val_loss_all,
+                                       "train_acc_all": train_acc_all,
+                                       "val_acc_all": val_acc_all})
 
+    # 返回训练过程中的数据记录，便于分析和绘图
+    return train_process
 
+# 接收训练过程数据 train_process，绘制损失和准确率随轮次变化的曲线图
+def matplot_loss_acc(train_process):
+    # 显示每一次迭代后的训练集和验证集的损失函数和准确率
+    plt.figure(figsize=(12, 4))
 
+    """
+        plt.subplot(1, 2, 1): 将绘图窗口分成 1 行 2 列，当前绘图区域为第 1 个子图
+        train_process["epoch"]: x 轴为训练轮次
+        train_process.train_loss_all：y 轴为训练集的损失值
+        "ro-"：用红色圆点连线表示数据（r 表示红色，o 表示圆点，- 表示实线）
+        label="Train Loss"：设置图例名称为 "Train Loss"
+    """
+    plt.subplot(1, 2, 1)
+    plt.plot(train_process["epoch"], train_process.train_loss_all, "ro-", label="Train Loss")
+    plt.plot(train_process["epoch"], train_process.val_loss_all, "bs-", label="Val Loss")
+    # 设置 x 轴和 y 轴的标签
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    # 显示图例 将 label 参数中设置的 "Train Loss" 和 "Val Loss" 图例显示在子图中
+    plt.legend()
 
-
+    plt.subplot(1, 2, 2)
+    plt.plot(train_process["epoch"], train_process.train_acc_all, "ro-", label="Train Accuracy")
+    plt.plot(train_process["epoch"], train_process.val_acc_all, "bs-", label="Val Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.show()
 
 
 if __name__ == "__main__":
-    # 判断是否有 GPU (CUDA) 可用，如果有则使用 GPU，否则使用 CPU
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # print(device) --> cuda
+    # 实例化 LeNet 模型
+    LeNet = LeNet()
 
-    # 实例化 LeNet 模型，并将其移动到指定设备
-    model = LeNet().to(device)
-
-    # 显示模型的结构和参数信息
+    # 加载数据集
     train_dataloader, val_dataloader = train_val_data_process()
-    train_model_process(model, train_dataloader, val_dataloader, 1)
+
+    # 训练
+    train_process = train_model_process(LeNet, train_dataloader, val_dataloader, 20)
+
+    # 画图
+    matplot_loss_acc(train_process)
 
 
 
