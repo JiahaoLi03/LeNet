@@ -153,6 +153,43 @@ def train_model_process(model, train_dataloader, val_dataloader, num_epochs):
 
             train_num += b_x.size(0)
 
+        for step, (b_x, b_y) in enumerate(val_dataloader):
+
+            b_x = b_x.to(device)
+            b_y = b_y.to(device)
+
+            model.eval()
+
+            output = model(b_x)
+
+            pre_lab = torch.argmax(output, dim=1)
+
+            loss = criterion(output, b_y)
+
+            val_loss += loss.item() * b_x.size(0)
+
+            val_corrects += torch.sum(pre_lab == b_y.data)
+
+            val_num += b_x.size(0)
+
+        train_loss_all.append(train_loss / train_num)
+        train_acc_all.append(train_corrects.double().item() / train_num)
+
+        val_loss_all.append(val_loss / val_num)
+        val_acc_all.append(val_corrects.double().item() / val_num)
+
+        print("{} Train Loss: {:.4f}  Train Acc: {:.4f}".format(epoch + 1, train_loss_all[-1], train_acc_all[-1]))
+        print("{}   Val Loss: {:.4f}    Val Acc: {:.4f}".format(epoch + 1, val_loss_all[-1], val_acc_all[-1]))
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
     # 判断是否有 GPU (CUDA) 可用，如果有则使用 GPU，否则使用 CPU
